@@ -1,0 +1,49 @@
+---
+title: "NFL"
+author: "Alexander Ivanoff"
+date: "10/10/2017"
+output: html_document
+---
+
+```{r}
+library(nflscrapR)
+season_2016 = season_play_by_play(2016)
+```
+
+```{r}
+season_2017 = season_play_by_play(2017)
+```
+
+```{r}
+library(dplyr)
+names(season_2017)
+unique(season_2017$GameID)
+receivers = season_2017 %>% group_by("Receiver")
+tds_2017 = season_2017[season_2017$Touchdown == 1,]
+td = receivers[receivers$Touchdown == 1,]
+```
+
+## Convert data into usable format 
+
+```{r}
+clean = function(df) {
+  df$TwoPointConv[df$TwoPointConv != "Success" | is.na(df$TwoPointConv)] = 0
+  df$TwoPointConv[df$TwoPointConv == "Success"] = 1
+  df$TwoPointConv = as.numeric(df$TwoPointConv)
+  return(df)
+}
+```
+
+## Creating scoring functions
+```{r}
+points = function(df) {
+  df$QBScore = df$PassAttempt * (df$Touchdown * 4 + df$ydsnet * 0.04) + 
+    df$RushAttempt * (df$Touchdown * 6 + df$ydsnet * 0.1) + 
+    df$InterceptionThrown * (-1) + df$TwoPointConv * 2
+
+  df$FScore = df$Touchdown * 6 + df$ydsnet * 0.1 + df$Reception * 0.5 + df$TwoPointConv * 2
+  return(df)
+}
+
+```
+
