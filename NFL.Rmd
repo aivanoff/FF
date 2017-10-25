@@ -32,18 +32,77 @@ clean = function(df) {
   df$TwoPointConv = as.numeric(df$TwoPointConv)
   return(df)
 }
-```
 
 ## Creating scoring functions
-```{r}
-points = function(df) {
-  df$QBScore = df$PassAttempt * (df$Touchdown * 4 + df$ydsnet * 0.04) + 
-    df$RushAttempt * (df$Touchdown * 6 + df$ydsnet * 0.1) + 
+points = function(df, penalized = FALSE) {
+  df$ScoringPlay = df$Accepted.Penalty != 1 & (df$PlayType == "Pass" | df$PlayType == "Run")
+  df$PassingScore = df$PassAttempt * (df$Touchdown * 4 + df$Yards.Gained * 0.04) + 
     df$InterceptionThrown * (-1) + df$TwoPointConv * 2
-
-  df$FScore = df$Touchdown * 6 + df$ydsnet * 0.1 + df$Reception * 0.5 + df$TwoPointConv * 2
+  df$FScore = df$ScoringPlay * (df$Touchdown * 6 + df$Yards.Gained * 0.1 + df$Reception * 0.5 + df$TwoPointConv * 2)
   return(df)
 }
 
+pipe = function(df) {
+  points(clean(df))
+}
+```
+
+## Test the qb score metrics on Tom Brady
+```{r}
+bid = unique(season_2017$Passer_ID[season_2017$Passer == "T.Brady"])[2]
+
+
+brady = szn_2017[szn_2017$Passer_ID == bid,]
+brady[brady$Passer_ID == bid | brady$Rusher_ID == bid,]
+qb_preds[qb_preds$Passer == "T.Brady",]
+```
+
+
+```{r}
+szn_2017 = pipe(season_2017)
+
+qb_preds = szn_2017 %>% group_by(Passer, GameID) %>% summarise(score = sum(PassingScore))
+```
+
+
+```{r}
+score = function(df, playerID, gameID) {
+  game = df[df$GameID == gameID,]
+  return(sum(game$FScore[game$Receiver_ID == playerID]) + 
+    sum(game$FScore[game$Rusher_ID == playerID]) + 
+    sum(game$PassingScore[game$Passer_ID == playerID]))
+}
+
+in_game = function(df, playerID, gameID) {
+  game = df[df$GameID == gameID,]
+  IDs = union_all(game$Passer_ID, game$Receiver_ID, game$Rusher_ID)
+  return(playerID %in% IDs)
+}
+```
+
+```{r}
+playerID = bid
+gameID = "2017090700"
+score(szn_2017, bid, gameID)
+
+PlayerIDs = union_all(unique(szn_2017$Passer_ID), unique(szn_2017$Receiver_ID), unique(szn_2017$Rusher_ID))
+
+GameIDs = unique(szn_2017$GameID)
+```
+```{r}
+x = c()
+for (player in PlayerIDs){
+  for (game in GameIDs) {
+    if(in_game(szn_2017, player, game) & player != "None") {
+      x = append(x, list(player, score(szn_2017, player, game)))
+    }
+  }
+}
+prs = data.frame(x, ncol = 2)
+```
+
+```{r}
+prs = data.frame(as.matrix(x, ncol = 2))
+#prs %>% group_by("x")
 ```
 
